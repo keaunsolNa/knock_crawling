@@ -1,13 +1,14 @@
 import logging
 import re
+import time
 from typing import List
 from bs4 import BeautifulSoup, ResultSet, Tag
+
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, search_kofic_index_by_title_and_director, exists_movie_by_kofic_code
-from crawling.base.webdriver_config import create_driver, scroll_until_loaded
-from crawling.services.crawling_util import get_detail_data
+from crawling.base.webdriver_config import create_driver, click_until_disappear
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -17,74 +18,80 @@ es = get_es_client()
 load_all_categories_into_cache("MOVIE")
 
 def extract_detail_url(element: Tag) -> str:
-    onclick = element.select_one("a.btn_reserve").get("onclick", "")
-    match = re.search(r"fnQuickReserve\('(\d+)'", onclick)
-    if match:
-        code = match.group(1)
-        return f"https://www.cgv.co.kr/movies/detail-view/?midx={code}"
-    logger.warning("[CGV] 예매 코드 추출 실패: %s", onclick)
-    return ""
+    reservation_element = element.select_one("a.movieBtn")
+    if not reservation_element:
+        return ""
+
+    link = "https://www.megabox.co.kr/movie-detail?rpstMovieNo=" + reservation_element.get("data-no", "")
+    return link
+
+def get_detail_data_with_selenium(url: str) -> BeautifulSoup | None:
+    from crawling.base.webdriver_config import create_driver
+    try:
+        driver = create_driver()
+        driver.get(url)
+        time.sleep(2)
+        html = driver.page_source
+        return BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        logger.warning(f"[HTML_UTILS] Selenium 상세 페이지 요청 실패: {e}")
+        return None
+    finally:
+        driver.quit()
 
 def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
-    spec_block = soup.select_one("div.spec")
-    if not spec_block:
+
+    info_block = soup.select_one("div.movie-info.infoContent")
+    if not info_block:
         return [], []
 
     directors, actors = [], []
-    dl_children = spec_block.select_one("dl").find_all(["dt", "dd"], recursive=False)
 
-    current_label = None
-    for tag in dl_children:
-        if tag.name == "dt":
-            text = tag.get_text(strip=True).replace(" ", "").replace(":", "").replace("/", "")
-            current_label = text  # ex: "감독", "배우"
-        elif tag.name == "dd" and current_label:
-            if "감독" in current_label:
-                directors.extend([a.text.strip() for a in tag.select("a") if a.text.strip()])
-            elif "배우" in current_label:
-                # 배우가 a 태그에 없을 수도 있음 (텍스트 분리)
-                if tag.select("a"):
-                    actors.extend([a.text.strip() for a in tag.select("a") if a.text.strip()])
-                else:
-                    raw_text = tag.get_text(separator=",").strip()
-                    actors.extend([a.strip() for a in raw_text.split(",") if a.strip()])
+    # 1. 감독 추출
+    director_p = info_block.find("p", string=re.compile(r"^\s*감독"))
+    if director_p:
+        text = director_p.get_text(strip=True)
+        text = re.sub(r"^감독\s*[:：]?\s*", "", text)
+        directors = [d.strip() for d in text.split(",") if d.strip()]
+
+    # 2. 출연진 추출
+    actor_p = info_block.find("p", string=re.compile(r"^\s*출연진"))
+    if actor_p:
+        text = actor_p.get_text(strip=True)
+        text = re.sub(r"^출연진\s*[:：]?\s*", "", text)
+        actors = [a.strip() for a in text.split(",") if a.strip()]
 
     return directors, actors
 
 def extract_genre(soup: BeautifulSoup) -> str:
-    spec_block = soup.select_one("div.spec")
-    if not spec_block:
+    info_block = soup.select_one("div.movie-info.infoContent")
+    if not info_block:
         return "기타"
 
-    dt_elements = spec_block.select("dt")
-
-    for dt in dt_elements:
-        if "장르" in dt.text:
-            genre_text = dt.get_text(strip=True).replace("장르 :", "").strip()
-            if genre_text:
-                genre = genre_text.split(",")[0].strip()
-                return genre
+    genre_p = info_block.find("p", string=lambda text: text and "장르" in text)
+    if genre_p:
+        text = genre_p.get_text(strip=True)
+        parts = text.replace("장르", "").replace(":", "").strip().split("/")
+        if parts:
+            return parts[0].strip()
 
     return "기타"
 
 def extract_runtime(soup: BeautifulSoup) -> int:
-    spec_block = soup.select_one("div.spec")
-    if not spec_block:
+    info_block = soup.select_one("div.movie-info.infoContent")
+    if not info_block:
         return 0
 
-    dt_elements = spec_block.select("dt")
-    dd_elements = spec_block.select("dd")
+    genre_p = info_block.find("p", string=lambda text: text and "장르" in text)
+    if genre_p:
+        text = genre_p.get_text(strip=True)
+        match = re.search(r"(\d+)\s*분", text)
+        if match:
+            return int(match.group(1))
 
-    for i, dt in enumerate(dt_elements):
-        if "기본 정보" in dt.text:
-            dd_text = dd_elements[i].text.strip()
-            match = re.search(r"(\d+)\s*분", dd_text)
-            if match:
-                return int(match.group(1))
     return 0
 
-
-class CGVCrawler(AbstractCrawlingService):
+class MEGABOXCrawler(AbstractCrawlingService):
 
     def __init__(self, config):
         super().__init__(config)
@@ -94,16 +101,16 @@ class CGVCrawler(AbstractCrawlingService):
         try:
             url = self.config["url"]
             self.driver.get(url)
-            scroll_until_loaded(self.driver, "div.mm_list_item")
+            click_until_disappear(self.driver, ".btn-more")
             html = self.driver.page_source
             soup = BeautifulSoup(html, "html.parser")
-            return soup.select("div.mm_list_item")
+            return soup.select("ol#movieList li")
         finally:
             self.driver.quit()
 
     def create_dto(self, element: Tag) -> dict:
         try:
-            title_tag = element.select_one("div.tit_area strong.tit")
+            title_tag = element.select_one("div.tit-area > p.tit")
             if not title_tag:
                 return {}
 
@@ -111,16 +118,16 @@ class CGVCrawler(AbstractCrawlingService):
             title = title_tag.text.strip()
             detail_url = extract_detail_url(element)
 
-            detail_soup = get_detail_data(detail_url) if detail_url else None
+            detail_soup = get_detail_data_with_selenium(detail_url) if detail_url else None
 
             # 개봉일
-            raw_date = element.select_one("span.rel-date").text.strip() if element.select_one("span.rel-date") else ""
-            release_date = raw_date.replace("개봉", "").strip()
+            raw_date = element.select_one("div.rate-date > span.date").text.strip() if element.select_one("div.rate-date > span.date") else ""
+            release_date = raw_date.replace("개봉일", "").strip()
             opening_time = converter.string_to_epoch(release_date) if release_date else 0
             running_time = extract_runtime(detail_soup) if detail_soup else 0
 
             # 포스터
-            img_tag = element.select_one("span.imgbox img")
+            img_tag = element.select_one("img")
             poster = img_tag["src"] if img_tag else ""
 
             # 줄거리
@@ -143,7 +150,7 @@ class CGVCrawler(AbstractCrawlingService):
             # 예매 링크
             reservation_link = [None, None, None]  # MEGA BOX, CGV, LOTTE
             if detail_url:
-                reservation_link[1] = "https://www.cgv.co.kr/movies/detail-view/?midx=" + detail_url.split("=")[-1]
+                reservation_link[0] = detail_url
 
             if kofic_index:
 
@@ -171,7 +178,7 @@ class CGVCrawler(AbstractCrawlingService):
                     "__update__": is_update
                 }
 
-            # fallback: CGV-only 정보 기반
+            # fallback: MEGABOX-only 정보 기반
             return {
                 "movieNm": title,
                 "openingTime": opening_time,
@@ -189,11 +196,11 @@ class CGVCrawler(AbstractCrawlingService):
             }
 
         except Exception as e:
-            logger.warning(f"[CGV] DTO 생성 실패: {e}")
+            logger.warning(f"[MEGABOX] DTO 생성 실패: {e}")
             return {}
 
     def crawl(self) -> List[dict]:
         raw = self.get_crawling_data()
         results = [self.create_dto(item) for item in raw]
-        logger.info(f"[CGV] Crawled {len(results)} items")
+        logger.info(f"[MEGABOX] Crawled {len(results)} items")
         return results

@@ -19,16 +19,11 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
         kofic_code = doc.get("KOFICCode")
         doc_id = None
 
-        if dedup_keys:
-            doc_id = "_".join([str(doc.get(k, '')) for k in dedup_keys])
-        elif kofic_code:
-            doc_id = kofic_code  # fallback
-
-        if is_update and doc_id:
+        if is_update and kofic_code:
 
             try:
                 # 🧠 기존 문서 조회
-                existing_doc = es.get(index=index, id=doc_id)["_source"]
+                existing_doc = es.get(index=index, kofic_code=kofic_code)["_source"]
                 partial_doc = {}
 
                 # 🎯 조건 기반 병합 (자바 로직 반영)
@@ -48,7 +43,6 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
                     actions.append({
                         "_op_type": "update",
                         "_index": index,
-                        "_id": doc_id,
                         "doc": partial_doc,
                         "doc_as_upsert": False
                     })
@@ -60,7 +54,6 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
             action = {
                 "_op_type": "index",
                 "_index": index,
-                "_id": doc_id if doc_id else None,
                 "_source": doc
             }
             actions.append(action)
@@ -131,8 +124,6 @@ def search_kofic_index_by_title_and_director(title: str, director_list: list) ->
     if not title or not director_list:
         return {}
 
-    print(title)
-    print(director_list)
     try:
         director_should = [{"match_phrase": {"directors": d}} for d in director_list]
         query = {
