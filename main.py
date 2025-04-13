@@ -3,7 +3,7 @@ from datetime import date
 
 from dotenv import load_dotenv
 
-from crawling.services import CGVCrawler, MEGABOXCrawler
+from crawling.services import CGVCrawler, MEGABOXCrawler, LOTTECrawler
 from infra.es_utils import save_to_es
 
 load_dotenv()
@@ -63,35 +63,35 @@ def run_all():
     # except Exception as e:
     #     print("❌ KOFIC 실패:", e)
 
-    try:
-        megabox = MEGABOXCrawler(megabox_config)
-        result = megabox.crawl()
-        print("📦 MEGABOX 결과 총 수량", len(result))
-        print(result)
-
-        save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
-    except Exception as e:
-        print("❌ MEGABOX 실패:", e)
-
-    try:
-        cgv = CGVCrawler(cgv_config)
-        result = cgv.crawl()
-        print("📦 CGV 결과 총 수량", len(result))
-        print(result)
-
-        save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
-    except Exception as e:
-        print("❌ CGV 실패:", e)
-
     # try:
-    #     lotte = LOTTECrawler(lotte_config)
-    #     result = lotte.crawl()
-    #     print("📦 LOTTE 결과 총 수량", len(result))
+    #     megabox = MEGABOXCrawler(megabox_config)
+    #     result = megabox.crawl()
+    #     print("📦 MEGABOX 결과 총 수량", len(result))
     #     print(result)
     #
     #     save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
     # except Exception as e:
-    #     print("❌ LOTTE 실패:", e)
+    #     print("❌ MEGABOX 실패:", e)
+    #
+    # try:
+    #     cgv = CGVCrawler(cgv_config)
+    #     result = cgv.crawl()
+    #     print("📦 CGV 결과 총 수량", len(result))
+    #     print(result)
+    #
+    #     save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
+    # except Exception as e:
+    #     print("❌ CGV 실패:", e)
+
+    try:
+        lotte = LOTTECrawler(lotte_config)
+        result = lotte.crawl()
+        print("📦 LOTTE 결과 총 수량", len(result))
+        print(result)
+
+        # save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ LOTTE 실패:", e)
 
 if __name__ == "__main__":
     print("🔍 [MAIN] 시작됨")

@@ -23,33 +23,48 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
 
             try:
                 # 🧠 기존 문서 조회
-                existing_doc = es.get(index=index, kofic_code=kofic_code)["_source"]
-                partial_doc = {}
+                search_result = es.search(index=index, query={"term": {"KOFICCode.keyword": kofic_code}})
+                hits = search_result["hits"]["hits"]
 
-                # 🎯 조건 기반 병합 (자바 로직 반영)
-                if doc.get("reservationLink") and any(doc["reservationLink"]):
-                    partial_doc["reservationLink"] = doc["reservationLink"]
+                if hits:
+                    existing_doc = hits[0]["_source"]
+                    doc_id = hits[0]["_id"]
+                    partial_doc = {}
 
-                if not existing_doc.get("posterBase64") or existing_doc.get("posterBase64", "").strip() == "":
-                    if doc.get("posterBase64"):
-                        partial_doc["posterBase64"] = doc["posterBase64"]
+                    # 🧩 reservationLink 병합
+                    existing_links = existing_doc.get("reservationLink", [None, None, None])
+                    incoming_links = doc.get("reservationLink", [None, None, None])
+                    merged_links = [
+                        new if new else old for new, old in zip(incoming_links, existing_links)
+                    ]
+                    if any(merged_links):
+                        partial_doc["reservationLink"] = merged_links
 
-                plot = existing_doc.get("plot", "")
-                if not plot or plot.strip() == "" or plot.strip() == "정보없음":
-                    partial_doc["plot"] = doc.get("plot", "정보없음")
+                    if not existing_doc.get("posterBase64") or existing_doc.get("posterBase64", "").strip() == "":
+                        if doc.get("posterBase64"):
+                            partial_doc["posterBase64"] = doc["posterBase64"]
 
-                # 업데이트할 게 있을 때만 추가
-                if partial_doc:
-                    actions.append({
-                        "_op_type": "update",
-                        "_index": index,
-                        "doc": partial_doc,
-                        "doc_as_upsert": False
-                    })
+                    plot = existing_doc.get("plot", "")
+                    if not plot or plot.strip() == "" or plot.strip() == "정보없음":
+                        partial_doc["plot"] = doc.get("plot", "정보없음")
+
+                    # 업데이트할 게 있을 때만 추가
+                    if partial_doc:
+                        actions.append({
+                            "_op_type": "update",
+                            "_index": index,
+                            "_id": doc_id,
+                            "doc": partial_doc,
+                            "doc_as_upsert": False
+                        })
 
             except Exception as e:
                 logger.warning(f"[ES] 기존 문서 조회 실패: {doc_id}, 예외: {e}")
-
+                actions.append({
+                    "_op_type": "index",
+                    "_index": index,
+                    "_source": doc
+                })
         else:
             action = {
                 "_op_type": "index",
