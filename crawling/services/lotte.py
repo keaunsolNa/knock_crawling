@@ -8,7 +8,8 @@ from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, search_kofic_index_by_title_and_director, exists_movie_by_kofic_code
-from crawling.base.webdriver_config import create_driver, scroll_until_loaded, get_detail_data_with_selenium
+from crawling.base.webdriver_config import create_driver, scroll_until_loaded
+from crawling.services.crawling_util import get_detail_data_with_selenium
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -18,16 +19,12 @@ es = get_es_client()
 load_all_categories_into_cache("MOVIE")
 
 def extract_detail_url(element: Tag) -> str:
-    reservation_element = element.select_one("div.over_box a[href]")
-    if not reservation_element:
-        return ""
-
-    link = "https://www.lottecinema.co.kr/NLCMW/Movie/MovieDetailView?movie=" + reservation_element.get("href", "")
-    return link
+    detail_anchor = element.select_one("div.over_box a[href*='MovieDetailView']")
+    if detail_anchor:
+        return detail_anchor.get("href", "")
+    return ""
 
 def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
-
-    logger.info(soup)
     info_block = soup.select_one("ul.detail_info2")
     if not info_block:
         return [], []
@@ -44,9 +41,14 @@ def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
         label_text = label.get_text(strip=True)
 
         if "감독" in label_text:
+            # 감독은 a 태그 기준
             directors = [a.get_text(strip=True) for a in value.select("a") if a.get_text(strip=True)]
         elif "출연" in label_text:
-            actors = [a.get_text(strip=True) for a in value.select("a") if a.get_text(strip=True)]
+            if value.select("a"):
+                actors = [a.get_text(strip=True) for a in value.select("a") if a.get_text(strip=True)]
+            else:
+                raw_text = value.get_text(separator=",").strip()
+                actors = [a.strip() for a in raw_text.split(",") if a.strip()]
 
     return directors, actors
 
@@ -64,9 +66,9 @@ def extract_genre(soup: BeautifulSoup) -> str:
 
         if "장르" in label.get_text(strip=True):
             text = value.get_text(strip=True)
-            parts = text.split("/")
-            if parts:
-                return parts[0].strip()
+            # "/"로 나눠서 첫 번째 장르만 사용
+            genre = text.split("/")[0].strip()
+            return genre if genre else "기타"
 
     return "기타"
 
@@ -82,6 +84,7 @@ def extract_runtime(soup: BeautifulSoup) -> int:
         if not label or not value:
             continue
 
+        # 런타임도 장르 라인에 포함되어 있을 수 있으므로 같이 체크
         if "장르" in label.get_text(strip=True):
             text = value.get_text(strip=True)
             match = re.search(r"(\d+)\s*분", text)
@@ -135,7 +138,6 @@ class LOTTECrawler(AbstractCrawlingService):
             detail_url = extract_detail_url(element)
 
             detail_soup = get_detail_data_with_selenium(detail_url) if detail_url else None
-
             # 개봉일
             raw_date = element.select_one("span.remain_info").text.strip() if element.select_one("span.remain_info") else ""
             release_date, opening_time = extract_release_date_and_opening_time(element, converter)

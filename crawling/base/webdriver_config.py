@@ -22,6 +22,7 @@ def create_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--disable-popup-blocking")
     chrome_options.add_argument("--blink-settings=imagesEnabled=false")
     chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 def scroll_until_loaded(driver: webdriver.Chrome, max_scroll: int = 50, wait_sec: int = 1):
