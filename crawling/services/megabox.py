@@ -1,6 +1,5 @@
 import logging
 import re
-import time
 from typing import List
 from bs4 import BeautifulSoup, ResultSet, Tag
 
@@ -8,7 +7,7 @@ from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, search_kofic_index_by_title_and_director, exists_movie_by_kofic_code
-from crawling.base.webdriver_config import create_driver, click_until_disappear
+from crawling.base.webdriver_config import create_driver, click_until_disappear, get_detail_data_with_selenium
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -24,20 +23,6 @@ def extract_detail_url(element: Tag) -> str:
 
     link = "https://www.megabox.co.kr/movie-detail?rpstMovieNo=" + reservation_element.get("data-no", "")
     return link
-
-def get_detail_data_with_selenium(url: str) -> BeautifulSoup | None:
-    from crawling.base.webdriver_config import create_driver
-    try:
-        driver = create_driver()
-        driver.get(url)
-        time.sleep(2)
-        html = driver.page_source
-        return BeautifulSoup(html, "html.parser")
-    except Exception as e:
-        logger.warning(f"[HTML_UTILS] Selenium 상세 페이지 요청 실패: {e}")
-        return None
-    finally:
-        driver.quit()
 
 def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
 

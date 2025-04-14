@@ -1,3 +1,4 @@
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -23,7 +24,7 @@ def create_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--disable-notifications")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
-def scroll_until_loaded(driver: webdriver.Chrome, selector: str, max_scroll: int = 50, wait_sec: int = 1):
+def scroll_until_loaded(driver: webdriver.Chrome, max_scroll: int = 50, wait_sec: int = 1):
     prev_height = driver.execute_script("return document.body.scrollHeight")
     scroll_count = 0
 
@@ -55,3 +56,17 @@ def click_until_disappear(driver, css_selector: str, timeout: int = 10):
 
     except Exception as e:
         logger.warning(f"다음 페이지 버튼 클릭 중 에러 발생: {e}")
+
+def get_detail_data_with_selenium(url: str) -> BeautifulSoup | None:
+    from crawling.base.webdriver_config import create_driver
+    try:
+        driver = create_driver()
+        driver.get(url)
+        time.sleep(2)
+        html = driver.page_source
+        return BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        logger.warning(f"[HTML_UTILS] Selenium 상세 페이지 요청 실패: {e}")
+        return None
+    finally:
+        driver.quit()

@@ -94,7 +94,7 @@ class CGVCrawler(AbstractCrawlingService):
         try:
             url = self.config["url"]
             self.driver.get(url)
-            scroll_until_loaded(self.driver, "div.mm_list_item")
+            scroll_until_loaded(self.driver)
             html = self.driver.page_source
             soup = BeautifulSoup(html, "html.parser")
             return soup.select("div.mm_list_item")
