@@ -79,27 +79,20 @@ class KOFICCrawler(AbstractCrawlingService):
         global dto
         results = []
         page = 1
-        stop_crawling = False
 
-        while not stop_crawling:
-            self.config["params"]["curPage"] = str(page)
-            raw_data = self.get_crawling_data()
-            if not raw_data:
-                break
+        self.config["params"]["curPage"] = str(page)
+        raw_data = self.get_crawling_data()
 
-            for item in raw_data:
-                dto = self.create_dto(item)
-                if dto.get("__update__"):
-                    logger.info(f"[KOFIC] 이미 존재하는 항목 발견: {dto.get('movieNm')}({dto.get('KOFICCode')}). 크롤링 중단.")
-                    stop_crawling = True
-                    break
-
-            logger.info(dto)
+        for item in raw_data:
+            dto = self.create_dto(item)
+            logger.info(f"[KOFIC] Created DTO: {dto}")
             results.append(dto)
-
-            if stop_crawling or len(raw_data) < int(self.config["params"].get("itemPerPage", 100)):
+            if dto.get("__update__"):
+                logger.info(f"[KOFIC] 이미 존재하는 항목 발견: {dto.get('movieNm')}({dto.get('KOFICCode')}). 크롤링 중단.")
                 break
 
-            page += 1
+        page += 1
+
+
         logger.info(f"[KOFIC] Crawled total {len(results)} items across {page} pages")
         return results
