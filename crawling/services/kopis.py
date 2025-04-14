@@ -5,7 +5,8 @@ from typing import List
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
-from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category
+from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, exists_kopis_by_kopis_code, \
+    load_all_kopis_into_cache
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -14,16 +15,65 @@ converter = StringDateConvertLongTimeStamp()
 es = get_es_client()
 
 load_all_categories_into_cache("PERFORMING_ARTS")
+load_all_kopis_into_cache()
+
+global dto
+
+def split_comma(s: str | None) -> list[str]:
+
+    if not s or not isinstance(s, str) or None == s or not s.strip():
+        return []
+    return [item.strip() for item in s.split(",") if item.strip()]
+
+def parse_runtime(runtime_str: str) -> int:
+    if not runtime_str or not isinstance(runtime_str, str):
+        return 0
+    h, m = 0, 0
+    if "시간" in runtime_str:
+        try:
+            h = int(runtime_str.split("시간")[0].strip())
+        except:
+            h = 0
+    if "분" in runtime_str:
+        try:
+            m = int(runtime_str.split("분")[0].split("시간")[-1].strip())
+        except:
+            m = 0
+    return h * 60 + m
+
+def parse_optional_list(value: str) -> List[str]:
+    return [v.strip() for v in value.split(",") if v.strip()] if value else []
 
 class KOPISCrawler(AbstractCrawlingService):
 
     def get_crawling_data(self) -> List[dict]:
         url = self.config["url"]
         params = self.config.get("params", {})
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = xmltodict.parse(response.text)
-        return data.get("dbs", {}).get("db", [])
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = xmltodict.parse(response.text)
+            dbs = data.get("dbs", {})
+
+            # 'dbs'가 dict 형태라면 "db" 키를 추출
+            if isinstance(dbs, dict):
+                db_list = dbs.get("db", [])
+                if isinstance(db_list, dict):
+                    return [db_list]  # 단일 항목이 dict로 올 수 있음
+                elif isinstance(db_list, list):
+                    return db_list
+                else:
+                    logger.warning(f"[KOPIS] Unexpected db format: {type(db_list)}")
+                    return []
+
+            logger.warning(f"[KOPIS] Unexpected 'dbs' type: {type(dbs)}")
+            return []
+
+        except Exception as e:
+            logger.warning(f"[KOPIS] Crawling 실패: {e}")
+            return []
+
 
     def get_detail_data(self, mt20id: str) -> dict:
         detail_url = self.config.get("url")
@@ -33,7 +83,8 @@ class KOPISCrawler(AbstractCrawlingService):
         try:
             response = requests.get(f"{detail_url}/{mt20id}", params=params)
             response.raise_for_status()
-            return xmltodict.parse(response.text).get("db", {})
+            data = xmltodict.parse(response.text)
+            return data.get("dbs", {}).get("db", {})
         except Exception as e:
             logger.warning(f"[KOPIS] Detail fetch failed for {mt20id}: {e}")
             return {}
@@ -43,78 +94,82 @@ class KOPISCrawler(AbstractCrawlingService):
         mt20id = item.get("mt20id", "")
         detail = self.get_detail_data(mt20id)
 
+        # relates
         relates = []
-        relate_data = detail.get("relate")
+        relate_data = detail.get("relates", {}).get("relate")
         if isinstance(relate_data, list):
             for r in relate_data:
-                name = r.get("relatenm")
-                url = r.get("relateurl")
+                name, url = r.get("relatenm"), r.get("relateurl")
                 if name and url:
                     relates.append(f"{name} : {url}")
         elif isinstance(relate_data, dict):
-            name = relate_data.get("relatenm")
-            url = relate_data.get("relateurl")
+            name, url = relate_data.get("relatenm"), relate_data.get("relateurl")
             if name and url:
                 relates.append(f"{name} : {url}")
 
+        # styurls
         styurls = []
-        styurl = detail.get("styurl")
-        if isinstance(styurl, list):
-            styurls = styurl
-        elif isinstance(styurl, str):
-            styurls = [styurl]
+        styurl_node = detail.get("styurls", {}).get("styurl")
+        if isinstance(styurl_node, str):
+            styurls.append(styurl_node.strip())
+        elif isinstance(styurl_node, list):
+            styurls = [url.strip() for url in styurl_node if isinstance(url, str) and url.strip()]
 
-        runtime_str = detail.get("prfruntime", "")
-        runtime = 0
-        if "시간" in runtime_str or "분" in runtime_str:
-            h = m = 0
-            if "시간" in runtime_str:
-                h = int(runtime_str.split("시간")[0].strip())
-            if "분" in runtime_str:
-                m = int(runtime_str.split("분")[0].split("시간")[-1].strip())
-            runtime = h * 60 + m
 
-        start_date_str = item.get("prfpdfrom", "")
-        end_date_str = item.get("prfpdto", "")
-
-        start_date = converter.string_to_epoch(start_date_str) if start_date_str else 0
-        end_date = converter.string_to_epoch(end_date_str) if end_date_str else 0
-
+        start_date = converter.string_to_epoch(item.get("prfpdfrom", ""))
+        end_date = converter.string_to_epoch(item.get("prfpdto", ""))
+        runtime = parse_runtime(detail.get("prfruntime", ""))
         genre = item.get("genrenm", "기타").upper()
         category = fetch_or_create_category(genre, "PERFORMING_ARTS")
+        dt_raw = detail.get("dtguidance")
+        dtguidance = split_comma(dt_raw) if dt_raw else []
 
         return {
-            "code": item.get("mt20id"),
+            "code": mt20id,
             "name": item.get("prfnm"),
             "from": start_date,
             "to": end_date,
-            "directors": item.get("prfcrew", "").split(",") if item.get("prfcrew") else [],
-            "actors": item.get("prfcast", "").split(",") if item.get("prfcast") else [],
-            "companyNm": [item.get("entrpsnm")] if item.get("entrpsnm") else [],
+            "directors": split_comma(detail.get("prfcrew", "")),
+            "actors": split_comma(detail.get("prfcast", "")),
+            "companyNm": split_comma(detail.get("entrpsnm", "")),
             "holeNm": item.get("fcltynm"),
             "poster": item.get("poster"),
-            "story": item.get("sty"),
+            "story": detail.get("sty", "").strip() if isinstance(detail.get("sty"), str) else "",
             "styurls": styurls,
             "area": item.get("area"),
             "prfState": item.get("prfstate"),
-            "dtguidance": item.get("dtguidance", "").split(",") if item.get("dtguidance") else [],
+            "dtguidance": dtguidance,
             "relates": relates,
             "runningTime": runtime,
             "categoryLevelOne": "PERFORMING_ARTS",
             "categoryLevelTwo": category,
+            "__update__": exists_kopis_by_kopis_code(mt20id)
         }
 
     def crawl(self) -> List[dict]:
+        global dto
         results = []
         page = 1
-        while True:
-            self.config["params"]["cpage"] = str(page)
+        stop_crawling = False
+        while not stop_crawling:
+            self.config["params"]["curPage"] = str(page)
             raw_data = self.get_crawling_data()
             if not raw_data:
                 break
-            results.extend([self.create_dto(item) for item in raw_data])
-            if len(raw_data) < int(self.config["params"].get("rows", 100)):
+
+            for item in raw_data:
+                dto = self.create_dto(item)
+                if dto.get("__update__"):
+                    logger.info(f"[KOPIS] 이미 존재하는 항목 발견: {dto.get('name')}({dto.get('code')}). 크롤링 중단.")
+                    stop_crawling = True
+                    break
+
+            results.append(dto)
+
+            if stop_crawling or len(raw_data) < int(self.config["params"].get("itemPerPage", 100)):
                 break
+
             page += 1
+
         logger.info(f"[KOPIS] Crawled total {len(results)} items across {page} pages")
         return results

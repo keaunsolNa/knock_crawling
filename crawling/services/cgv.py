@@ -5,7 +5,8 @@ from bs4 import BeautifulSoup, ResultSet, Tag
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
-from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, search_kofic_index_by_title_and_director, exists_movie_by_kofic_code
+from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, \
+    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, load_all_movies_into_cache
 from crawling.base.webdriver_config import create_driver, scroll_until_loaded
 from crawling.services.crawling_util import get_detail_data
 
@@ -15,6 +16,7 @@ converter = StringDateConvertLongTimeStamp()
 
 es = get_es_client()
 load_all_categories_into_cache("MOVIE")
+load_all_movies_into_cache()
 
 def extract_detail_url(element: Tag) -> str:
     onclick = element.select_one("a.btn_reserve").get("onclick", "")

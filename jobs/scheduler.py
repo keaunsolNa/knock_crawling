@@ -7,7 +7,6 @@ from datetime import date
 from crawling.services import CGVCrawler, MEGABOXCrawler, LOTTECrawler, KOFICCrawler, KOPISCrawler
 from infra.es_utils import save_to_es
 
-
 load_dotenv()
 
 async def run_scheduler():

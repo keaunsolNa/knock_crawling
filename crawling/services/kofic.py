@@ -4,16 +4,18 @@ from typing import List
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
-from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category
+from infra.es_utils import fetch_or_create_category, exists_kofic_by_kofic_code, load_all_kofic_into_cache, \
+    load_all_categories_into_cache
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 converter = StringDateConvertLongTimeStamp()
-
 es = get_es_client()
 
 load_all_categories_into_cache("MOVIE")
+load_all_kofic_into_cache()
 
+global dto
 class KOFICCrawler(AbstractCrawlingService):
 
     def get_crawling_data(self) -> List[dict]:
@@ -69,20 +71,34 @@ class KOFICCrawler(AbstractCrawlingService):
             "companyNm": companies,
             "categoryLevelOne": "MOVIE",
             "categoryLevelTwo": categories,
-            "runningTime": running_time
+            "runningTime": running_time,
+            "__update__": exists_kofic_by_kofic_code(item.get("movieCd"))
         }
 
     def crawl(self) -> List[dict]:
+        global dto
         results = []
         page = 1
-        while True:
+        stop_crawling = False
+
+        while not stop_crawling:
             self.config["params"]["curPage"] = str(page)
             raw_data = self.get_crawling_data()
             if not raw_data:
                 break
-            results.extend([self.create_dto(item) for item in raw_data])
-            if len(raw_data) < int(self.config["params"].get("itemPerPage", 100)):
+
+            for item in raw_data:
+                dto = self.create_dto(item)
+                if dto.get("__update__"):
+                    logger.info(f"[KOFIC] 이미 존재하는 항목 발견: {dto.get('movieNm')}({dto.get('KOFICCode')}). 크롤링 중단.")
+                    stop_crawling = True
+                    break
+
+            results.append(dto)
+
+            if stop_crawling or len(raw_data) < int(self.config["params"].get("itemPerPage", 100)):
                 break
+
             page += 1
         logger.info(f"[KOFIC] Crawled total {len(results)} items across {page} pages")
         return results

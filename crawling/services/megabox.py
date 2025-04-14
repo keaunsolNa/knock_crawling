@@ -6,7 +6,8 @@ from bs4 import BeautifulSoup, ResultSet, Tag
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
-from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, search_kofic_index_by_title_and_director, exists_movie_by_kofic_code
+from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, \
+    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, load_all_movies_into_cache
 from crawling.base.webdriver_config import create_driver, click_until_disappear, get_detail_data_with_selenium
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ converter = StringDateConvertLongTimeStamp()
 
 es = get_es_client()
 load_all_categories_into_cache("MOVIE")
+load_all_movies_into_cache()
 
 def extract_detail_url(element: Tag) -> str:
     reservation_element = element.select_one("a.movieBtn")
@@ -129,8 +131,11 @@ class MEGABOXCrawler(AbstractCrawlingService):
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
+            print(title)
+            print(directors)
             # 🔍 KOFIC 인덱스 조회 (문자열로)
             kofic_index = search_kofic_index_by_title_and_director(title, directors)
+            print(kofic_index)
 
             # 예매 링크
             reservation_link = [None, None, None]  # MEGA BOX, CGV, LOTTE
