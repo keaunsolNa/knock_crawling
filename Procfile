@@ -1,0 +1,1 @@
+worker: python your_crawling_script.py
