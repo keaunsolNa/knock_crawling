@@ -53,42 +53,42 @@ def run():
     except Exception as e:
         print("❌ KOPIS 실패:", e)
 
-    # try:
-    #     kofic = KOFICCrawler(kofic_config)
-    #     result = kofic.crawl()
-    #     print("📦 KOFIC 결과 총 수량", len(result))
-    #     save_to_es("kofic-index", result, dedup_keys=["movieNm", "openDt"])
-    # except Exception as e:
-    #     print("❌ KOFIC 실패:", e)
-    #
-    # try:
-    #     megabox = MEGABOXCrawler(megabox_config)
-    #     result = megabox.crawl()
-    #     print("📦 MEGABOX 결과 총 수량", len(result))
-    #     print(result)
-    #
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    # except Exception as e:
-    #     print("❌ MEGABOX 실패:", e)
-    #
-    # try:
-    #     cgv = CGVCrawler(cgv_config)
-    #     result = cgv.crawl()
-    #     print("📦 CGV 결과 총 수량", len(result))
-    #     print(result)
-    #
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    # except Exception as e:
-    #     print("❌ CGV 실패:", e)
-    #
-    # try:
-    #     lotte = LOTTECrawler(lotte_config)
-    #     result = lotte.crawl()
-    #     print("📦 LOTTE 결과 총 수량", len(result))
-    #     print(result)
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    # except Exception as e:
-    #     print("❌ LOTTE 실패:", e)
+    try:
+        kofic = KOFICCrawler(kofic_config)
+        result = kofic.crawl()
+        print("📦 KOFIC 결과 총 수량", len(result))
+        save_to_es("kofic-index", result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ KOFIC 실패:", e)
+
+    try:
+        megabox = MEGABOXCrawler(megabox_config)
+        result = megabox.crawl()
+        print("📦 MEGABOX 결과 총 수량", len(result))
+        print(result)
+
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ MEGABOX 실패:", e)
+
+    try:
+        cgv = CGVCrawler(cgv_config)
+        result = cgv.crawl()
+        print("📦 CGV 결과 총 수량", len(result))
+        print(result)
+
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ CGV 실패:", e)
+
+    try:
+        lotte = LOTTECrawler(lotte_config)
+        result = lotte.crawl()
+        print("📦 LOTTE 결과 총 수량", len(result))
+        print(result)
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ LOTTE 실패:", e)
 
 if __name__ == "__main__":
     print("🔍 [MAIN] 시작됨")

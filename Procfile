@@ -1,1 +1,1 @@
-worker: python your_crawling_script.py
+worker: python main.py

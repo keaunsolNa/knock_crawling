@@ -94,6 +94,7 @@ class KOFICCrawler(AbstractCrawlingService):
                     stop_crawling = True
                     break
 
+            logger.info(dto)
             results.append(dto)
 
             if stop_crawling or len(raw_data) < int(self.config["params"].get("itemPerPage", 100)):
