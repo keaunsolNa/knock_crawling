@@ -74,47 +74,47 @@ async def run_scheduler():
         print("❌ KOFIC 실패:", e)
         send_discord_message(f"✅ KOFIC 크롤링 실패! {str(e)}")
 
-    # load_all_movies_into_cache()
-    # try:
-    #     megabox = MEGABOXCrawler(megabox_config)
-    #     result = megabox.crawl()
-    #     print("📦 MEGABOX 결과 총 수량", len(result))
-    #     print(result)
-    #     send_discord_message(f"✅ MEGABOX 크롤링 완료! 수량: {len(result)}개")
-    #
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    # except Exception as e:
-    #     print("❌ MEGABOX 실패:", e)
-    #     send_discord_message(f"✅ MEGABOX 크롤링 실패! {str(e)}")
-    #
-    # load_all_movies_into_cache()
-    # try:
-    #     cgv = CGVCrawler(cgv_config)
-    #     result = cgv.crawl()
-    #     print("📦 CGV 결과 총 수량", len(result))
-    #     print(result)
-    #
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    #     send_discord_message(f"✅ CGV 크롤링 완료! 수량: {len(result)}개")
-    #
-    # except Exception as e:
-    #     print("❌ CGV 실패:", e)
-    #     send_discord_message(f"✅ CGV 크롤링 실패! {str(e)}")
-    #
-    #
-    # load_all_movies_into_cache()
-    # try:
-    #     lotte = LOTTECrawler(lotte_config)
-    #     result = lotte.crawl()
-    #     print("📦 LOTTE 결과 총 수량", len(result))
-    #     print(result)
-    #
-    #     save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
-    #     send_discord_message(f"✅ LOTTE 크롤링 완료! 수량: {len(result)}개")
-    #
-    # except Exception as e:
-    #     print("❌ LOTTE 실패:", e)
-    #     send_discord_message(f"✅ LOTTE 크롤링 실패! {str(e)}")
+    load_all_movies_into_cache()
+    try:
+        megabox = MEGABOXCrawler(megabox_config)
+        result = megabox.crawl()
+        print("📦 MEGABOX 결과 총 수량", len(result))
+        print(result)
+        send_discord_message(f"✅ MEGABOX 크롤링 완료! 수량: {len(result)}개")
+
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+    except Exception as e:
+        print("❌ MEGABOX 실패:", e)
+        send_discord_message(f"✅ MEGABOX 크롤링 실패! {str(e)}")
+
+    load_all_movies_into_cache()
+    try:
+        cgv = CGVCrawler(cgv_config)
+        result = cgv.crawl()
+        print("📦 CGV 결과 총 수량", len(result))
+        print(result)
+
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+        send_discord_message(f"✅ CGV 크롤링 완료! 수량: {len(result)}개")
+
+    except Exception as e:
+        print("❌ CGV 실패:", e)
+        send_discord_message(f"✅ CGV 크롤링 실패! {str(e)}")
+
+
+    load_all_movies_into_cache()
+    try:
+        lotte = LOTTECrawler(lotte_config)
+        result = lotte.crawl()
+        print("📦 LOTTE 결과 총 수량", len(result))
+        print(result)
+
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
+        send_discord_message(f"✅ LOTTE 크롤링 완료! 수량: {len(result)}개")
+
+    except Exception as e:
+        print("❌ LOTTE 실패:", e)
+        send_discord_message(f"✅ LOTTE 크롤링 실패! {str(e)}")
 
 async def main():
     scheduler = AsyncIOScheduler()
