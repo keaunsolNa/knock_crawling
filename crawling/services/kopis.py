@@ -44,6 +44,18 @@ def parse_runtime(runtime_str: str) -> int:
 def parse_optional_list(value: str) -> List[str]:
     return [v.strip() for v in value.split(",") if v.strip()] if value else []
 
+def get_prf_state_enum(korean: str) -> str | None:
+    mapping = {
+        "공연예정": "UPCOMING",
+        "공연중": "ONGOING",
+        "공연완료": "COMPLETED",
+        "오픈런": "OPEN_RUN",
+        "리미티드런": "LIMITED_RUN",
+        "마감임박": "CLOSING_SOON",
+        "알 수 없음": "UNKNOWN"
+    }
+    return mapping.get(korean)
+
 class KOPISCrawler(AbstractCrawlingService):
 
     def get_crawling_data(self) -> List[dict]:
@@ -138,7 +150,7 @@ class KOPISCrawler(AbstractCrawlingService):
             "story": detail.get("sty", "").strip() if isinstance(detail.get("sty"), str) else "",
             "styurls": styurls,
             "area": item.get("area"),
-            "prfState": item.get("prfstate"),
+            "prfState": get_prf_state_enum(item.get("prfstate")) or "UNKNOWN",
             "dtguidance": dtguidance,
             "relates": relates,
             "runningTime": runtime,
