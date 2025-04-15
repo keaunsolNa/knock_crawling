@@ -124,18 +124,18 @@ class MEGABOXCrawler(AbstractCrawlingService):
                 if plot_tag:
                     plot = plot_tag.get("content", "").strip()
 
-            genre = extract_genre(detail_soup) if detail_soup else "기타"
+            genres = extract_genre(detail_soup) if detail_soup else "기타"
             # 장르 → 카테고리
-            category_level_two = fetch_or_create_category(genre, "MOVIE")
-
+            # category_level_two = fetch_or_create_category(genre, "MOVIE")
+            category_level_two = [
+                fetch_or_create_category(genres, "MOVIE") for genre in genres
+                if fetch_or_create_category(genre, "MOVIE")
+            ]
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
-            print(title)
-            print(directors)
             # 🔍 KOFIC 인덱스 조회 (문자열로)
             kofic_index = search_kofic_index_by_title_and_director(title, directors)
-            print(kofic_index)
 
             # 예매 링크
             reservation_link = [None, None, None]  # MEGA BOX, CGV, LOTTE
@@ -145,9 +145,12 @@ class MEGABOXCrawler(AbstractCrawlingService):
             if kofic_index:
 
                 kofic_category = kofic_index.get("categoryLevelTwo", category_level_two)
-                # 리스트인 경우 첫 번째 항목 사용
-                if isinstance(kofic_category, list) and kofic_category:
-                    kofic_category = kofic_category[0]
+                if isinstance(kofic_category, list):
+                    kofic_categories = [c for c in kofic_category if c]  # 빈 항목 제거
+                elif kofic_category:  # 단일 문자열
+                    kofic_categories = [kofic_category]
+                else:
+                    kofic_categories = []
 
                 is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode"))
                 # KOFIC 기반 정보 덮어쓰기

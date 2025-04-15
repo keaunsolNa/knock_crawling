@@ -11,6 +11,8 @@ from selenium.webdriver.common.by import By
 import time
 import logging
 
+from webdriver_manager.chrome import ChromeDriverManager
+
 logger = logging.getLogger(__name__)
 
 def create_driver() -> webdriver.Chrome:
@@ -24,12 +26,9 @@ def create_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--blink-settings=imagesEnabled=false")
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
-    chrome_options.binary_location = os.getenv("GOOGLE_CHROME_BIN", "/usr/bin/google-chrome")
 
-    return webdriver.Chrome(
-        service=Service(os.getenv("CHROMEDRIVER_PATH", "/app/.chrome-for-testing/chrome-linux64/chrome")),
-        options=chrome_options
-    )
+    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
 
 def scroll_until_loaded(driver: webdriver.Chrome, max_scroll: int = 50, wait_sec: int = 1):
     prev_height = driver.execute_script("return document.body.scrollHeight")

@@ -54,7 +54,7 @@ def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
 
     return directors, actors
 
-def extract_genre(soup: BeautifulSoup) -> str:
+def extract_genres(soup: BeautifulSoup) -> str:
     info_block = soup.select_one("ul.detail_info2")
     if not info_block:
         return "기타"
@@ -69,8 +69,9 @@ def extract_genre(soup: BeautifulSoup) -> str:
         if "장르" in label.get_text(strip=True):
             text = value.get_text(strip=True)
             # "/"로 나눠서 첫 번째 장르만 사용
-            genre = text.split("/")[0].strip()
-            return genre if genre else "기타"
+            # genre = text.split("/")[0].strip()
+            genres = [g.strip() for g in text.split("/") if g.strip()]
+            return genres if genres else "기타"
 
     return "기타"
 
@@ -156,10 +157,12 @@ class LOTTECrawler(AbstractCrawlingService):
                 if plot_tag:
                     plot = plot_tag.get("content", "").strip()
 
-            genre = extract_genre(detail_soup) if detail_soup else "기타"
+            genres = extract_genres(detail_soup) if detail_soup else "기타"
             # 장르 → 카테고리
-            category_level_two = fetch_or_create_category(genre, "MOVIE")
-
+            category_level_two = [
+                fetch_or_create_category(genre, "MOVIE") for genre in genres
+                if fetch_or_create_category(genre, "MOVIE")
+            ]
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
