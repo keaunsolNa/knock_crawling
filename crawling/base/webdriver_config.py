@@ -24,10 +24,10 @@ def create_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--blink-settings=imagesEnabled=false")
     chrome_options.add_argument("--disable-notifications")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
-    chrome_options.binary_location = os.getenv("GOOGLE_CHROME_BIN", "/app/.apt/usr/bin/google-chrome")
+    chrome_options.binary_location = os.getenv("GOOGLE_CHROME_BIN", "/usr/bin/google-chrome")
 
     return webdriver.Chrome(
-        service=Service(os.getenv("CHROMEDRIVER_PATH", "/app/.chromedriver/bin/chromedriver")),
+        service=Service(os.getenv("CHROMEDRIVER_PATH", "/app/.chrome-for-testing/chromedriver-linux64/chromedriver")),
         options=chrome_options
     )
 
