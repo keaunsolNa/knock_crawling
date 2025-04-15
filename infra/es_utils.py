@@ -153,7 +153,7 @@ def load_all_kofic_into_cache(index_name="kofic-index"):
         response = es.search(index=index_name, body={"query": {"match_all": {}}}, size=10000)
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
-            kofic_code = src.get("code")
+            kofic_code = src.get("KOFICCode")
             if kofic_code:
                 _cached_kofic_by_kofic_code[kofic_code] = {
                     **src,
@@ -165,9 +165,11 @@ def load_all_kofic_into_cache(index_name="kofic-index"):
 
 # kofic-index kofic 기반 exist 검색
 def exists_kofic_by_kofic_code(kofic_code: str) -> bool:
+
+    print(kofic_code)
     if not kofic_code:
         return False
-    return kofic_code in _cached_movies_by_kofic_code
+    return kofic_code in _cached_kofic_by_kofic_code
 
 # kofic-index 캐시 기반 title/director 로 검색
 def search_kofic_index_by_title_and_director(title: str, director_list: list) -> dict:

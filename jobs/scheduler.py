@@ -30,7 +30,9 @@ async def run_scheduler():
         "params": {
             "key": os.getenv("KOFIC_API_KEY"),
             "openStartDt": start_date,
-            "itemPerPage": "100"
+            "itemPerPage": "100",
+            "curPage": "1",
+            "rows": "100"
         }
     }
 
@@ -98,7 +100,7 @@ async def run_scheduler():
 
 async def main():
     scheduler = AsyncIOScheduler()
-    trigger = CronTrigger(hour=22, minute=0, timezone="Asia/Seoul")
+    trigger = CronTrigger(hour=10, minute=0, timezone="Asia/Seoul")
     scheduler.add_job(run_scheduler, trigger)
     scheduler.start()
     await asyncio.Event().wait()

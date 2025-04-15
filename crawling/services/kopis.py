@@ -49,7 +49,8 @@ class KOPISCrawler(AbstractCrawlingService):
     def get_crawling_data(self) -> List[dict]:
         url = self.config["url"]
         params = self.config.get("params", {})
-
+        logger.info(url)
+        logger.info(params)
         try:
             response = requests.get(url, params=params)
             response.raise_for_status()
@@ -150,19 +151,28 @@ class KOPISCrawler(AbstractCrawlingService):
         global dto
         results = []
         page = 1
+        stop_crawling = False
 
-        self.config["params"]["curPage"] = str(page)
-        raw_data = self.get_crawling_data()
+        while not stop_crawling:
 
-        for item in raw_data:
-            dto = self.create_dto(item)
-            logger.info(f"[KOPIS] Created DTO: {dto}")
-            results.append(dto)
-            if dto.get("__update__"):
-                logger.info(f"[KOPIS] 이미 존재하는 항목 발견: {dto.get('name')}({dto.get('code')}). 크롤링 중단.")
+            self.config["params"]["cpage"] = str(page)
+            raw_data = self.get_crawling_data()
+            if not raw_data:
                 break
 
-        page += 1
+            for item in raw_data:
+                dto = self.create_dto(item)
+                logger.info(f"[KOPIS] Created DTO: {dto}")
+
+                if dto.get("__update__"):
+                    logger.info(f"[KOPIS] 이미 존재하는 항목 발견: {dto.get('name')}({dto.get('code')}). 크롤링 중단.")
+                    stop_crawling = True
+                    break
+                results.append(dto)
+
+            page += 1
+            if page > 3000:
+                break
 
         logger.info(f"[KOPIS] Crawled total {len(results)} items across {page} pages")
         return results
