@@ -1,5 +1,5 @@
 from jobs import run_scheduler
 
 if __name__ == "__main__":
-    print("🔍 [MAIN] 시작됨")
-    run_scheduler()
+    print("🔍 [MAIN] 스케줄러 실행됨")
+    asyncio.run(scheduler_main())
