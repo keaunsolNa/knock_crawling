@@ -27,7 +27,7 @@ def create_driver() -> webdriver.Chrome:
     chrome_options.binary_location = os.getenv("GOOGLE_CHROME_BIN", "/usr/bin/google-chrome")
 
     return webdriver.Chrome(
-        service=Service(os.getenv("CHROMEDRIVER_PATH", "/app/.chrome-for-testing/chromedriver-linux64/chromedriver")),
+        service=Service(os.getenv("CHROMEDRIVER_PATH", "/app/.chrome-for-testing/chrome-linux64/chrome")),
         options=chrome_options
     )
 

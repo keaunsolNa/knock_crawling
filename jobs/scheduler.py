@@ -56,7 +56,7 @@ async def run_scheduler():
         kopis = KOPISCrawler(kopis_config)
         result = kopis.crawl()
         print("📦 KOPIS 결과 총 수량", len(result))
-        save_to_es(os.getenv("BONSAI_INDEX_KOPIS"), result, dedup_keys=["name", "start_date"])
+        save_to_es("kopis-index", result, dedup_keys=["name", "start_date"])
         send_discord_message(f"✅ KOPIS 크롤링 완료! 수량: {len(result)}개")
 
     except Exception as e:
@@ -67,7 +67,7 @@ async def run_scheduler():
         kofic = KOFICCrawler(kofic_config)
         result = kofic.crawl()
         print("📦 KOFIC 결과 총 수량", len(result))
-        save_to_es(os.getenv("BONSAI_INDEX_KOFIC"), result, dedup_keys=["movieNm", "openDt"])
+        save_to_es("kofic-index", result, dedup_keys=["movieNm", "openDt"])
         send_discord_message(f"✅ KOFIC 크롤링 완료! 수량: {len(result)}개")
 
     except Exception as e:
@@ -80,7 +80,7 @@ async def run_scheduler():
         print(result)
         send_discord_message(f"✅ MEGABOX 크롤링 완료! 수량: {len(result)}개")
 
-        save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
     except Exception as e:
         print("❌ MEGABOX 실패:", e)
         send_discord_message(f"✅ MEGABOX 크롤링 실패! {str(e)}")
@@ -90,7 +90,7 @@ async def run_scheduler():
         print("📦 CGV 결과 총 수량", len(result))
         print(result)
 
-        save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
         send_discord_message(f"✅ CGV 크롤링 완료! 수량: {len(result)}개")
 
     except Exception as e:
@@ -102,7 +102,7 @@ async def run_scheduler():
         print("📦 LOTTE 결과 총 수량", len(result))
         print(result)
 
-        save_to_es(os.getenv("BONSAI_INDEX_MOVIE"), result, dedup_keys=["movieNm", "openDt"])
+        save_to_es("movie-index", result, dedup_keys=["movieNm", "openDt"])
         send_discord_message(f"✅ LOTTE 크롤링 완료! 수량: {len(result)}개")
 
     except Exception as e:
