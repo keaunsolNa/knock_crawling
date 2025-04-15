@@ -8,7 +8,7 @@ from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, \
-    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, load_all_movies_into_cache
+    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, exists_movie_by_nm
 from crawling.base.webdriver_config import create_driver, scroll_until_loaded
 from crawling.services.crawling_util import get_detail_data_with_selenium
 
@@ -18,7 +18,6 @@ converter = StringDateConvertLongTimeStamp()
 
 es = get_es_client()
 load_all_categories_into_cache("MOVIE")
-load_all_movies_into_cache()
 
 def extract_detail_url(element: Tag) -> str:
     detail_anchor = element.select_one("div.over_box a[href*='MovieDetailView']")
@@ -54,10 +53,10 @@ def extract_director_and_actors(soup: BeautifulSoup) -> (List[str], List[str]):
 
     return directors, actors
 
-def extract_genres(soup: BeautifulSoup) -> str:
+def extract_genres(soup: BeautifulSoup) -> List[str]:
     info_block = soup.select_one("ul.detail_info2")
     if not info_block:
-        return "기타"
+        return ["기타"]
 
     for li in info_block.select("li"):
         label = li.find("em")
@@ -67,13 +66,16 @@ def extract_genres(soup: BeautifulSoup) -> str:
             continue
 
         if "장르" in label.get_text(strip=True):
-            text = value.get_text(strip=True)
-            # "/"로 나눠서 첫 번째 장르만 사용
-            # genre = text.split("/")[0].strip()
-            genres = [g.strip() for g in text.split("/") if g.strip()]
-            return genres if genres else "기타"
+            full_text = value.get_text(strip=True)
 
-    return "기타"
+            # 슬래시(/) 기준으로 국가 등 뒷부분 제거
+            genre_text = full_text.split("/")[0].strip()
+
+            # 쉼표로 장르 분할
+            genres = [g.strip() for g in genre_text.split(",") if g.strip()]
+            return genres if genres else ["기타"]
+
+    return ["기타"]
 
 def extract_runtime(soup: BeautifulSoup) -> int:
     info_block = soup.select_one("ul.detail_info2")
@@ -157,12 +159,13 @@ class LOTTECrawler(AbstractCrawlingService):
                 if plot_tag:
                     plot = plot_tag.get("content", "").strip()
 
-            genres = extract_genres(detail_soup) if detail_soup else "기타"
-            # 장르 → 카테고리
+            genres = extract_genres(detail_soup) if detail_soup else ["기타"]
             category_level_two = [
                 fetch_or_create_category(genre, "MOVIE") for genre in genres
-                if fetch_or_create_category(genre, "MOVIE")
+                if genre
             ]
+
+            logger.info(category_level_two)
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
@@ -181,7 +184,7 @@ class LOTTECrawler(AbstractCrawlingService):
                 if isinstance(kofic_category, list) and kofic_category:
                     kofic_category = kofic_category[0]
 
-                is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode"))
+                is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode")) or exists_movie_by_nm(title)
                 # KOFIC 기반 정보 덮어쓰기
                 return {
                     "movieNm": kofic_index.get("movieNm", title),

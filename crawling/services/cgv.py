@@ -6,7 +6,7 @@ from crawling.base.abstract_crawling_service import AbstractCrawlingService
 from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, \
-    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, load_all_movies_into_cache
+    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, exists_movie_by_nm
 from crawling.base.webdriver_config import create_driver, scroll_until_loaded
 from crawling.services.crawling_util import get_detail_data
 
@@ -16,7 +16,6 @@ converter = StringDateConvertLongTimeStamp()
 
 es = get_es_client()
 load_all_categories_into_cache("MOVIE")
-load_all_movies_into_cache()
 
 def extract_detail_url(element: Tag) -> str:
     onclick = element.select_one("a.btn_reserve").get("onclick", "")
@@ -133,10 +132,15 @@ class CGVCrawler(AbstractCrawlingService):
                     plot = plot_tag.get("content", "").strip()
 
             genres = extract_genre(detail_soup) if detail_soup else "기타"
+            genre_list = [g.strip() for g in genres.split(",")] if isinstance(genres, str) else []
+
             category_level_two = [
-                fetch_or_create_category(genres, "MOVIE") for genre in genres
-                if fetch_or_create_category(genre, "MOVIE")
+                fetch_or_create_category(genre, "MOVIE")
+                for genre in genre_list
+                if genre.strip()
             ]
+
+            logger.info(category_level_two)
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
@@ -158,7 +162,7 @@ class CGVCrawler(AbstractCrawlingService):
                 else:
                     kofic_categories = []
 
-                is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode"))
+                is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode")) or exists_movie_by_nm(title)
                 # KOFIC 기반 정보 덮어쓰기
                 return {
                     "movieNm": kofic_index.get("movieNm", title),

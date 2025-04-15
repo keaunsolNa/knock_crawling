@@ -20,14 +20,13 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
         if not doc or not isinstance(doc, dict):
             continue  # ❗ None, 빈 dict 방지
         if not index or not isinstance(index, str) or index.strip() == "":
-            print(index)
             raise ValueError("❌ [ES] index is missing or invalid. 전달된 index 값이 없습니다.")
 
         is_update = doc.pop("__update__", False)
         kofic_code = doc.get("KOFICCode")
         doc_id = None
 
-        if is_update and kofic_code:
+        if is_update :
 
             try:
                 # 🧠 기존 문서 조회
@@ -83,6 +82,7 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
 
     success, _ = bulk(es, actions, raise_on_error=False)
     print(f"✅ Elasticsearch 저장 완료: {success}/{len(actions)}")
+    es.indices.refresh(index=index)
 
 # category-level-two 캐싱
 def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
@@ -107,10 +107,6 @@ def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
 
 # category-level-two fetch/create
 def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str]:
-
-    if not nm.strip():
-        logger.warning("[CATEGORY] 빈 장르명은 건너뜀")
-        return {}
 
     es = get_es_client()
     key = (nm.strip().upper(), parent_nm.strip().upper())
@@ -166,16 +162,15 @@ def load_all_kofic_into_cache(index_name="kofic-index"):
 # kofic-index kofic 기반 exist 검색
 def exists_kofic_by_kofic_code(kofic_code: str) -> bool:
 
-    print(kofic_code)
     if not kofic_code:
         return False
     return kofic_code in _cached_kofic_by_kofic_code
 
 # kofic-index 캐시 기반 title/director 로 검색
 def search_kofic_index_by_title_and_director(title: str, director_list: list) -> dict:
-
     if not title or not director_list:
         return {}
+
 
     best_match = None
     for kofic_code, data in _cached_kofic_by_kofic_code.items():
@@ -197,12 +192,23 @@ def search_kofic_index_by_title_and_director(title: str, director_list: list) ->
 
 # kopis-index 캐싱
 def load_all_kopis_into_cache(index_name="kopis-index"):
-    global _cached_kopis_by_kopis_code
+    from elasticsearch import helpers
 
+    global _cached_kopis_by_kopis_code
     es = get_es_client()
+    _cached_kopis_by_kopis_code.clear()
+
     try:
-        response = es.search(index=index_name, body={"query": {"match_all": {}}}, size=10000)
-        for hit in response.get("hits", {}).get("hits", []):
+        scroll = helpers.scan(
+            client=es,
+            index=index_name,
+            query={"query": {"match_all": {}}},
+            scroll="5m",            # scroll 유지 시간
+            size=1000               # batch size
+        )
+
+        count = 0
+        for hit in scroll:
             src = hit["_source"]
             kopis_code = src.get("code")
             if kopis_code:
@@ -210,15 +216,25 @@ def load_all_kopis_into_cache(index_name="kopis-index"):
                     **src,
                     "_id": hit["_id"]
                 }
-        logger.info(f"[CACHE] kopis 캐시 적재 완료: {len(_cached_kopis_by_kopis_code)}편")
+                count += 1
+
+        logger.info(f"[CACHE] kopis 캐시 적재 완료: {count}편")
     except Exception as e:
         logger.warning(f"[CACHE] kopis-index 캐싱 실패: {e}")
+
 
 # kopis-index kopis 기반 exist 검색
 def exists_kopis_by_kopis_code(kopis_code: str) -> bool:
     if not kopis_code:
         return False
     return kopis_code in _cached_kopis_by_kopis_code
+
+def exists_movie_by_nm(nm: str):
+    if not nm:
+        return False
+
+    return nm in _cached_kopis_by_kopis_code
+
 
 # movie-index 캐싱
 def load_all_movies_into_cache(index_name="movie-index"):
@@ -249,3 +265,8 @@ def exists_movie_by_kofic_code(kofic_code: str) -> bool:
 def get_movie_document_id_by_kofic_code(kofic_code: str) -> str | None:
     doc = _cached_movies_by_kofic_code.get(kofic_code)
     return doc.get("_id") if doc else None
+
+def split_comma(s: str | None) -> list[str]:
+    if not s or not isinstance(s, str):
+        return []
+    return [item.strip() for item in s.split(",") if item.strip()]
