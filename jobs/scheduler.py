@@ -118,7 +118,8 @@ async def run_scheduler():
 
 async def main():
     scheduler = AsyncIOScheduler()
-    trigger = CronTrigger(minute='0', timezone='Asia/Seoul')
+    cron_minute = os.getenv("CRON_MINUTE", "0")
+    trigger = CronTrigger(minute=cron_minute, timezone="Asia/Seoul")
     scheduler.add_job(run_scheduler, trigger)
     scheduler.start()
     await asyncio.Event().wait()
