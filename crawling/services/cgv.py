@@ -180,23 +180,42 @@ class CGVCrawler(AbstractCrawlingService):
                     "favorites" : "",
                     "__update__": is_update
                 }
+            else:
+                is_update = exists_movie_by_nm(title)
 
-            # fallback: CGV-only 정보 기반
-            return {
-                "movieNm": title,
-                "openingTime": opening_time,
-                "KOFICCode": "",
-                "reservationLink": reservation_link,
-                "posterBase64": poster,
-                "directors" : directors,
-                "actors" : actors,
-                "companyNm" : "",
-                "categoryLevelOne": "MOVIE",
-                "categoryLevelTwo": category_level_two,
-                "runningTime" : running_time,
-                "plot": plot if plot else "정보없음",
-                "favorites" : ""
-            }
+                if is_update:
+                    return {
+                        "movieNm": title,
+                        "openingTime": opening_time,
+                        "KOFICCode": "",
+                        "reservationLink": reservation_link,
+                        "posterBase64": poster,
+                        "directors" : directors,
+                        "actors" : actors,
+                        "companyNm" : [],
+                        "categoryLevelOne": "MOVIE",
+                        "categoryLevelTwo": category_level_two,
+                        "runningTime" : running_time,
+                        "plot": plot if plot else "정보없음",
+                        "favorites" : [],
+                        "__update__": is_update
+                    }
+                else:
+                    return {
+                        "movieNm": title,
+                        "openingTime": opening_time,
+                        "KOFICCode": "",
+                        "reservationLink": reservation_link,
+                        "posterBase64": poster,
+                        "directors" : directors,
+                        "actors" : actors,
+                        "companyNm" : [],
+                        "categoryLevelOne": "MOVIE",
+                        "categoryLevelTwo": category_level_two,
+                        "runningTime" : running_time,
+                        "plot": plot if plot else "정보없음",
+                        "favorites" : []
+                    }
 
         except Exception as e:
             logger.warning(f"[CGV] DTO 생성 실패: {e}")

@@ -239,13 +239,6 @@ def exists_kopis_by_kopis_code(kopis_code: str) -> bool:
         return False
     return kopis_code in _cached_kopis_by_kopis_code
 
-def exists_movie_by_nm(nm: str):
-    if not nm:
-        return False
-
-    return nm in _cached_kopis_by_kopis_code
-
-
 # movie-index 캐싱
 def load_all_movies_into_cache(index_name="movie-index"):
     global _cached_movies_by_kofic_code
@@ -253,11 +246,12 @@ def load_all_movies_into_cache(index_name="movie-index"):
     es = get_es_client()
     try:
         response = es.search(index=index_name, body={"query": {"match_all": {}}}, size=10000)
+
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
-            kofic_code = src.get("KOFICCode")
-            if kofic_code:
-                _cached_movies_by_kofic_code[kofic_code] = {
+            doc_id = src.get("_id")
+            if doc_id:
+                _cached_movies_by_kofic_code[doc_id] = {
                     **src,
                     "_id": hit["_id"]
                 }
@@ -275,6 +269,13 @@ def exists_movie_by_kofic_code(kofic_code: str) -> bool:
 def get_movie_document_id_by_kofic_code(kofic_code: str) -> str | None:
     doc = _cached_movies_by_kofic_code.get(kofic_code)
     return doc.get("_id") if doc else None
+
+# movie_index nm 기준 exist 검색
+def exists_movie_by_nm(nm: str):
+    if not nm:
+        return False
+
+    return nm in _cached_kopis_by_kopis_code
 
 def split_comma(s: str | None) -> list[str]:
     if not s or not isinstance(s, str):
