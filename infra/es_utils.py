@@ -110,6 +110,7 @@ def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
         response = es.search(index="category-level-two-index", body=query)
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
+            src["id"] = hit["_id"]
             key = (src["nm"].strip().upper(), src["parentNm"].strip().upper())
             category_cache[key] = src
         logger.info(f"[CACHE] Loaded {len(category_cache)} categories into cache.")
@@ -138,8 +139,10 @@ def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str
         response = es.search(index="category-level-two-index", body=query)
         hits = response.get("hits", {}).get("hits", [])
         if hits:
-            category_cache[key] = hits[0]["_source"]
-            return hits[0]["_source"]
+            doc = hits[0]["_source"]
+            doc["id"] = hits[0]["_id"]
+            category_cache[key] = doc
+            return doc
 
         # 없으면 새로 생성
         doc = {"nm": nm, "parentNm": parent_nm}
