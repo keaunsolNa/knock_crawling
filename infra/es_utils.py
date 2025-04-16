@@ -249,12 +249,12 @@ def load_all_movies_into_cache(index_name="movie-index"):
 
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
-            doc_id = src.get("_id")
-            if doc_id:
-                _cached_movies_by_kofic_code[doc_id] = {
-                    **src,
-                    "_id": hit["_id"]
-                }
+            doc_id = hit["_id"]
+            _cached_movies_by_kofic_code[doc_id] = {
+                **src,
+                "_id": doc_id
+            }
+
         logger.info(f"[CACHE] 영화 캐시 적재 완료: {len(_cached_movies_by_kofic_code)}편")
     except Exception as e:
         logger.warning(f"[CACHE] movie-index 캐싱 실패: {e}")
