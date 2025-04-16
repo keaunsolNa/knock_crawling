@@ -8,6 +8,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 category_cache: Dict[Tuple[str, str], Dict[str, str]] = {}
 _cached_movies_by_kofic_code: Dict[str, dict] = {}
+_cached_movies_by_title: Dict[str, dict] = {}
 _cached_kofic_by_kofic_code: Dict[str, dict] = {}
 _cached_kopis_by_kopis_code: Dict[str, dict] = {}
 
@@ -232,7 +233,6 @@ def load_all_kopis_into_cache(index_name="kopis-index"):
     except Exception as e:
         logger.warning(f"[CACHE] kopis-index 캐싱 실패: {e}")
 
-
 # kopis-index kopis 기반 exist 검색
 def exists_kopis_by_kopis_code(kopis_code: str) -> bool:
     if not kopis_code:
@@ -241,19 +241,25 @@ def exists_kopis_by_kopis_code(kopis_code: str) -> bool:
 
 # movie-index 캐싱
 def load_all_movies_into_cache(index_name="movie-index"):
-    global _cached_movies_by_kofic_code
+    global _cached_movies_by_kofic_code, _cached_movies_by_title
 
     es = get_es_client()
+    _cached_movies_by_kofic_code.clear()
+    _cached_movies_by_title.clear()
+
     try:
         response = es.search(index=index_name, body={"query": {"match_all": {}}}, size=10000)
-
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
             doc_id = hit["_id"]
-            _cached_movies_by_kofic_code[doc_id] = {
-                **src,
-                "_id": doc_id
-            }
+
+            kofic_code = src.get("KOFICCode", "")
+            title = src.get("movieNm", "").strip()
+
+            if kofic_code:
+                _cached_movies_by_kofic_code[kofic_code] = {**src, "_id": doc_id}
+            if title:
+                _cached_movies_by_title[title] = {**src, "_id": doc_id}
 
         logger.info(f"[CACHE] 영화 캐시 적재 완료: {len(_cached_movies_by_kofic_code)}편")
     except Exception as e:
@@ -261,21 +267,21 @@ def load_all_movies_into_cache(index_name="movie-index"):
 
 # movie-index kofic 기반 exist 검색
 def exists_movie_by_kofic_code(kofic_code: str) -> bool:
-    if not kofic_code:
-        return False
-    return kofic_code in _cached_movies_by_kofic_code
+    return kofic_code in _cached_movies_by_kofic_code if kofic_code else False
+
+# movie_index nm 기준 exist 검색
+def exists_movie_by_nm(nm: str):
+    return nm in _cached_movies_by_title if nm else False
 
 # movie-index kofic 기반 검색
 def get_movie_document_id_by_kofic_code(kofic_code: str) -> str | None:
     doc = _cached_movies_by_kofic_code.get(kofic_code)
     return doc.get("_id") if doc else None
 
-# movie_index nm 기준 exist 검색
-def exists_movie_by_nm(nm: str):
-    if not nm:
-        return False
-
-    return nm in _cached_kopis_by_kopis_code
+# movie-index nm 기반 검색
+def get_movie_document_id_by_nm(nm: str) -> str | None:
+    doc = _cached_movies_by_title.get(nm)
+    return doc.get("_id") if doc else None
 
 def split_comma(s: str | None) -> list[str]:
     if not s or not isinstance(s, str):

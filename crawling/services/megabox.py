@@ -133,7 +133,6 @@ class MEGABOXCrawler(AbstractCrawlingService):
                 if genre.strip()
             ]
 
-            logger.info(category_level_two)
             # 감독, 배우
             directors, actors = extract_director_and_actors(detail_soup) if detail_soup else ([], [])
 
