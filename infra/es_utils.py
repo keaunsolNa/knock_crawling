@@ -179,9 +179,11 @@ def exists_kofic_by_kofic_code(kofic_code: str) -> bool:
 
 # kofic-index 캐시 기반 title/director 로 검색
 def search_kofic_index_by_title_and_director(title: str, director_list: list) -> dict:
+
+    logger.info(f"[CACHE] Title {title} & Director: {director_list}")
+
     if not title or not director_list:
         return {}
-
 
     best_match = None
     for kofic_code, data in _cached_kofic_by_kofic_code.items():
@@ -189,11 +191,14 @@ def search_kofic_index_by_title_and_director(title: str, director_list: list) ->
         if data.get("movieNm") != title:
             continue
 
+        logger.info(f"[CACHE] Title Correct: {director_list}")
+        logger.info(f"[CACHE] Title {data.get("movieNm", [])} & Director IN KOFIC: {data.get("directors", [])}")
         # 감독 일치율 계산
         cached_directors = data.get("directors", [])
         if not cached_directors:
             continue
 
+        logger.info(f"[CACHE] Director Correct: {director_list}")
         matched = any(d in cached_directors for d in director_list)
         if matched:
             best_match = data
@@ -258,19 +263,37 @@ def load_all_movies_into_cache(index_name="movie-index"):
 
             if kofic_code:
                 _cached_movies_by_kofic_code[kofic_code] = {**src, "_id": doc_id}
-            if title:
+                print(_cached_movies_by_kofic_code[kofic_code])
+            elif title:
                 _cached_movies_by_title[title] = {**src, "_id": doc_id}
+                print(_cached_movies_by_title[title])
 
         logger.info(f"[CACHE] 영화 캐시 적재 완료: {len(_cached_movies_by_kofic_code)}편")
+        logger.info(f"[CACHE] 영화 캐시 적재 완료: {len(_cached_movies_by_title)}편")
+        logger.info(f"[CACHE] 영화 캐시 전체 적재 완료: {len(_cached_movies_by_title) + len(_cached_movies_by_kofic_code)}편")
     except Exception as e:
         logger.warning(f"[CACHE] movie-index 캐싱 실패: {e}")
 
 # movie-index kofic 기반 exist 검색
 def exists_movie_by_kofic_code(kofic_code: str) -> bool:
+
+    logger.info(f"[CACHE] 영화 캐시에서 검색, KOFIC_CODE : {kofic_code}")
+    if kofic_code in _cached_movies_by_kofic_code:
+        logger.info(f"[CACHE] ✅ 캐시 HIT: {_cached_movies_by_kofic_code[kofic_code]}")
+    else:
+        logger.info(f"[CACHE] ❌ 캐시 MISS: {kofic_code}")
+
     return kofic_code in _cached_movies_by_kofic_code if kofic_code else False
 
 # movie_index nm 기준 exist 검색
 def exists_movie_by_nm(nm: str):
+
+    logger.info(f"[CACHE] 영화 캐시에서 검색, 제목 : {nm}")
+    if nm in _cached_movies_by_title:
+        logger.info(f"[CACHE] ✅ 캐시 HIT: {_cached_movies_by_title[nm]}")
+    else:
+        logger.info(f"[CACHE] ❌ 캐시 MISS: {nm}")
+
     return nm in _cached_movies_by_title if nm else False
 
 # movie-index kofic 기반 검색

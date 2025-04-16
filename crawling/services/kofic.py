@@ -21,7 +21,6 @@ class KOFICCrawler(AbstractCrawlingService):
     def get_crawling_data(self) -> List[dict]:
         url = self.config["url"]
         params = self.config.get("params", {})
-        logger.info(url, params)
         response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json().get("movieListResult", {}).get("movieList", [])
