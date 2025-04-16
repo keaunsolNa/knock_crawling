@@ -22,8 +22,9 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
         if not index or not isinstance(index, str) or index.strip() == "":
             raise ValueError("❌ [ES] index is missing or invalid. 전달된 index 값이 없습니다.")
 
-        is_update = doc.pop("__update__", False)
+        is_update  = doc.pop("__update__", False)
         kofic_code = doc.get("KOFICCode")
+        movie_nm   = doc.get("movieNm")
         doc_id = None
 
         if is_update :
@@ -34,44 +35,20 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
                 hits = search_result["hits"]["hits"]
 
                 if hits:
-                    existing_doc = hits[0]["_source"]
-                    doc_id = hits[0]["_id"]
-                    partial_doc = {}
 
-                    # 🧩 reservationLink 병합
-                    existing_links = existing_doc.get("reservationLink", [None, None, None])
-                    incoming_links = doc.get("reservationLink", [None, None, None])
-                    merged_links = [
-                        new if new else old for new, old in zip(incoming_links, existing_links)
-                    ]
-                    if any(merged_links):
-                        partial_doc["reservationLink"] = merged_links
+                    setting_doc(hits=hits, doc=doc, actions=actions, index=index)
 
-                    if not existing_doc.get("posterBase64") or existing_doc.get("posterBase64", "").strip() == "":
-                        if doc.get("posterBase64"):
-                            partial_doc["posterBase64"] = doc["posterBase64"]
+                else:
+                    search_result = es.search(index=index, query={"term": {"movieNm.keyword": movie_nm}})
+                    hits = search_result["hits"]["hits"]
 
-                    plot = existing_doc.get("plot", "")
-                    if not plot or plot.strip() == "" or plot.strip() == "정보없음":
-                        partial_doc["plot"] = doc.get("plot", "정보없음")
+                    if hits:
 
-                    # 업데이트할 게 있을 때만 추가
-                    if partial_doc:
-                        actions.append({
-                            "_op_type": "update",
-                            "_index": index,
-                            "_id": doc_id,
-                            "doc": partial_doc,
-                            "doc_as_upsert": False
-                        })
+                        setting_doc(hits=hits, doc=doc, actions=actions, index=index)
+
 
             except Exception as e:
                 logger.warning(f"[ES] 기존 문서 조회 실패: {doc_id}, 예외: {e}")
-                actions.append({
-                    "_op_type": "index",
-                    "_index": index,
-                    "_source": doc
-                })
         else:
             action = {
                 "_op_type": "index",
@@ -83,6 +60,39 @@ def save_to_es(index: str, documents: list, dedup_keys: list = None):
     success, _ = bulk(es, actions, raise_on_error=False)
     print(f"✅ Elasticsearch 저장 완료: {success}/{len(actions)}")
     es.indices.refresh(index=index)
+
+# save_to_es doc 셋팅
+def setting_doc (hits, doc, actions, index):
+    existing_doc = hits[0]["_source"]
+    doc_id = hits[0]["_id"]
+    partial_doc = {}
+
+    # 🧩 reservationLink 병합
+    existing_links = existing_doc.get("reservationLink", [None, None, None])
+    incoming_links = doc.get("reservationLink", [None, None, None])
+    merged_links = [
+        new if new else old for new, old in zip(incoming_links, existing_links)
+    ]
+    if any(merged_links):
+        partial_doc["reservationLink"] = merged_links
+
+    if not existing_doc.get("posterBase64") or existing_doc.get("posterBase64", "").strip() == "":
+        if doc.get("posterBase64"):
+            partial_doc["posterBase64"] = doc["posterBase64"]
+
+    plot = existing_doc.get("plot", "")
+    if not plot or plot.strip() == "" or plot.strip() == "정보없음":
+        partial_doc["plot"] = doc.get("plot", "정보없음")
+
+    # 업데이트할 게 있을 때만 추가
+    if partial_doc:
+        actions.append({
+            "_op_type": "update",
+            "_index": index,
+            "_id": doc_id,
+            "doc": partial_doc,
+            "doc_as_upsert": False
+        })
 
 # category-level-two 캐싱
 def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
