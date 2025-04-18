@@ -185,8 +185,10 @@ def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str
         response = es.search(index="category-level-two-index", body=query)
         hits = response.get("hits", {}).get("hits", [])
         if hits:
-            category_cache[key] = hits[0]["_source"]
-            return hits[0]["_source"]
+            doc = hits[0]["_source"]
+            doc["id"] = hits[0]["_id"]
+            category_cache[key] = doc
+            return doc
 
         # 없으면 새로 생성
         doc = {"id": id, "nm": nm, "parentNm": parent_nm}
