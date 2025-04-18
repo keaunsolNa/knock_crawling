@@ -50,13 +50,14 @@ KNOCK 프론트엔드 및 백엔드에서 해당 정보를 검색/활용합니�
 ---
 
 ## 🚀 연동 구조
-
+```plaintext
 graph TD
     A[KNOCK 사용자] --> B[프론트엔드 - Next.js]
     B --> C[백엔드 API - Spring Boot]
     C --> D[Elasticsearch (Bonsai)]
     F[knock_crawling (Python)]
     F --> D
+```
 
 ## 🗂️ 디렉터리 구조
 
