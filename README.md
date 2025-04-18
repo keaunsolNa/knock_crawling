@@ -139,6 +139,7 @@ python scheduler/main.py
 ## 🔗 관련 서비스
 
 - 🛎️ [KNOCK 메인 레포지토리](https://github.com/keaunsolNa/Knock)
+- 🛠️ [KNOCK 백엔드 서비 레포지토리](https://github.com/keaunsolNa/knock-back-server)
 - 📄 [KNOCK 소개 페이지 (Notion)](https://www.notion.so/1d0eb6c84ddd80da9dece7e09ec68c77)
 
 ---
