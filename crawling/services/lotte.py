@@ -1,16 +1,17 @@
 import logging
 import re
-
-from typing import List
-from bs4 import BeautifulSoup, ResultSet, Tag
 from datetime import datetime, timedelta
+from typing import List
+
+from bs4 import BeautifulSoup, ResultSet, Tag
+
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
-from method.StringDateConvert import StringDateConvertLongTimeStamp
+from crawling.base.webdriver_config import create_driver, scroll_until_loaded
+from crawling.services.crawling_util import get_detail_data_with_selenium, make_dto
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, \
-    search_kofic_index_by_title_and_director, exists_movie_by_kofic_code, exists_movie_by_nm
-from crawling.base.webdriver_config import create_driver, scroll_until_loaded
-from crawling.services.crawling_util import get_detail_data_with_selenium
+    search_kofic_index_by_title_and_director
+from method.StringDateConvert import StringDateConvertLongTimeStamp
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -176,67 +177,18 @@ class LOTTECrawler(AbstractCrawlingService):
             if detail_url:
                 reservation_link[2] = detail_url
 
-            if kofic_index:
-
-                kofic_category = kofic_index.get("categoryLevelTwo", category_level_two)
-                # 리스트인 경우 첫 번째 항목 사용
-                if isinstance(kofic_category, list) and kofic_category:
-                    kofic_category = kofic_category[0]
-
-                is_update = exists_movie_by_kofic_code(kofic_index.get("KOFICCode"))
-                # KOFIC 기반 정보 덮어쓰기
-                return {
-                    "movieNm": kofic_index.get("movieNm", title),
-                    "openingTime": kofic_index.get("openingTime", opening_time),
-                    "KOFICCode": kofic_index.get("KOFICCode"),
-                    "reservationLink": reservation_link,
-                    "posterBase64": poster,
-                    "directors": kofic_index.get("directors", []),
-                    "actors": kofic_index.get("actors", []),
-                    "companyNm": kofic_index.get("companyNm", []),
-                    "categoryLevelOne": "MOVIE",
-                    "categoryLevelTwo": kofic_category,
-                    "runningTime": kofic_index.get("runningTime", 0),
-                    "plot": plot if plot else "정보없음",
-                    "favorites" : [],
-                    "__update__": is_update
-                }
-            else:
-                is_update = exists_movie_by_nm(title)
-
-                if is_update:
-                    return {
-                        "movieNm": title,
-                        "openingTime": opening_time,
-                        "KOFICCode": "",
-                        "reservationLink": reservation_link,
-                        "posterBase64": poster,
-                        "directors" : directors,
-                        "actors" : actors,
-                        "companyNm" : [],
-                        "categoryLevelOne": "MOVIE",
-                        "categoryLevelTwo": category_level_two,
-                        "runningTime" : running_time,
-                        "plot": plot if plot else "정보없음",
-                        "favorites" : [],
-                        "__update__": is_update
-                    }
-                else:
-                    return {
-                        "movieNm": title,
-                        "openingTime": opening_time,
-                        "KOFICCode": "",
-                        "reservationLink": reservation_link,
-                        "posterBase64": poster,
-                        "directors" : directors,
-                        "actors" : actors,
-                        "companyNm" : [],
-                        "categoryLevelOne": "MOVIE",
-                        "categoryLevelTwo": category_level_two,
-                        "runningTime" : running_time,
-                        "plot": plot if plot else "정보없음",
-                        "favorites" : []
-                    }
+            return make_dto(
+                title=title,
+                opening_time=opening_time,
+                poster=poster,
+                reservation_link=reservation_link,
+                directors=directors,
+                actors=actors,
+                category_level_two=category_level_two,
+                plot=plot,
+                running_time=running_time,
+                kofic_index=kofic_index
+            )
 
         except Exception as e:
             logger.warning(f"[LOTTE] DTO 생성 실패: {e}")

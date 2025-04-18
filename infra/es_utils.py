@@ -12,7 +12,7 @@ _cached_movies_by_title: Dict[str, dict] = {}
 _cached_kofic_by_kofic_code: Dict[str, dict] = {}
 _cached_kopis_by_kopis_code: Dict[str, dict] = {}
 
-def save_to_es(index: str, documents: list, dedup_keys: list = None):
+def save_to_es(index: str, documents: list):
 
     es = get_es_client()
     actions = []
@@ -110,11 +110,58 @@ def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
         response = es.search(index="category-level-two-index", body=query)
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
+            src["id"] = hit["_id"]
             key = (src["nm"].strip().upper(), src["parentNm"].strip().upper())
             category_cache[key] = src
         logger.info(f"[CACHE] Loaded {len(category_cache)} categories into cache.")
     except Exception as e:
         logger.warning(f"[CACHE] 카테고리 캐싱 실패: {e}")
+
+def update_kofic_docs_with_category_ids():
+    es = get_es_client()
+    query = {
+        "query": {
+            "match_all": {}
+        },
+        "size": 10000  # 필요한 양에 따라 늘릴 수 있음
+    }
+
+    try:
+        response = es.search(index="movie-index", body=query)
+        actions = []
+
+        for hit in response.get("hits", {}).get("hits", []):
+            doc_id = hit["_id"]
+            src = hit["_source"]
+
+            updated = False
+            if "categoryLevelTwo" in src:
+                for cat in src["categoryLevelTwo"]:
+                    key = (cat.get("nm", "").strip().upper(), cat.get("parentNm", "").strip().upper())
+                    if key in category_cache:
+                        cat["id"] = category_cache[key]["id"]
+                        updated = True
+                    else:
+                        logger.warning(f"[WARN] No matching category found in cache for {key}")
+
+            if updated:
+                actions.append({
+                    "_op_type": "update",
+                    "_index": "movie-index",
+                    "_id": doc_id,
+                    "doc": {
+                        "categoryLevelTwo": src["categoryLevelTwo"]
+                    }
+                })
+
+        if actions:
+            bulk(es, actions)
+            logger.info(f"[BULK UPDATE] {len(actions)}개의 문서가 성공적으로 업데이트되었습니다.")
+        else:
+            logger.info("[BULK UPDATE] 업데이트할 문서가 없습니다.")
+
+    except Exception as e:
+        logger.error(f"[ERROR] KOFIC 문서 업데이트 실패: {e}")
 
 # category-level-two fetch/create
 def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str]:
@@ -142,7 +189,7 @@ def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str
             return hits[0]["_source"]
 
         # 없으면 새로 생성
-        doc = {"nm": nm, "parentNm": parent_nm}
+        doc = {"id": id, "nm": nm, "parentNm": parent_nm}
         es.index(index="category-level-two-index", document=doc)
         category_cache[key] = doc
         logger.info(f"[CATEGORY] Created new category: {nm}, {parent_nm}")
