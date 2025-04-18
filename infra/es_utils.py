@@ -24,11 +24,30 @@ def save_to_es(index: str, documents: list):
             raise ValueError("❌ [ES] index is missing or invalid. 전달된 index 값이 없습니다.")
 
         is_update  = doc.pop("__update__", False)
+        is_delete  = doc.pop("__delete__", False)
         kofic_code = doc.get("KOFICCode")
         movie_nm   = doc.get("movieNm")
         doc_id = None
 
-        if is_update :
+        if is_delete:
+            try:
+                if kofic_code:
+                    search_result = es.search(index=index, query={"term": {"KOFICCode.keyword": kofic_code}})
+                else:
+                    search_result = es.search(index=index, query={"term": {"movieNm.keyword": movie_nm}})
+                hits = search_result["hits"]["hits"]
+                if hits:
+                    doc_id = hits[0]["_id"]
+                    actions.append({
+                        "_op_type": "delete",
+                        "_index": index,
+                        "_id": doc_id
+                    })
+            except Exception as e:
+                logger.warning(f"[ES] 문서 삭제 실패: {doc_id}, 예외: {e}")
+            continue  # 삭제 완료 후 다음 문서 처리
+
+        elif is_update :
 
             try:
                 # 🧠 기존 문서 조회

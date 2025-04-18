@@ -142,6 +142,7 @@ def make_dto(title: str,
                 "runningTime" : running_time,
                 "plot": plot if plot else "정보없음",
                 "favorites" : [],
+                "__update__": is_update,
                 "__delete__": is_delete
             }
         
