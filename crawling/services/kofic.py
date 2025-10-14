@@ -22,6 +22,7 @@ class KOFICCrawler(AbstractCrawlingService):
         url = self.config["url"]
         params = self.config.get("params", {})
         response = requests.get(url, params=params)
+        logger.info(f"[KOPIS] GET {response.url} status={response.status_code}")
         response.raise_for_status()
         return response.json().get("movieListResult", {}).get("movieList", [])
 
@@ -85,6 +86,11 @@ class KOFICCrawler(AbstractCrawlingService):
 
             self.config["params"]["curPage"] = str(page)
             raw_data = self.get_crawling_data()
+            if page == 1:
+                logger.info(f"[KOPIS] page=1 raw_data type={type(raw_data)} len={len(raw_data) if isinstance(raw_data, list) else 'NA'}")
+                if isinstance(raw_data, list) and raw_data[:2]:
+                    logger.info(f"[KOPIS] sample items: {[r.get('mt20id') for r in raw_data[:2]]}")
+
             if not raw_data:
                 break
 

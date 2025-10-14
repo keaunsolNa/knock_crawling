@@ -119,17 +119,19 @@ def load_all_categories_into_cache(parent_nm: str = "MOVIE"):
     es = get_es_client()
     query = {
         "query": {
-            "match": {
-                "parentNm": parent_nm
+            "bool": {
+                "filter": [
+                    {"term": {"parentNm": parent_nm}}
+                ]
             }
         },
-        "size": 1000
+        "size": 10000
     }
     try:
         response = es.search(index="category-level-two-index", body=query)
         for hit in response.get("hits", {}).get("hits", []):
             src = hit["_source"]
-            src["id"] = hit["_id"]
+            src = {**src, "id": hit["_id"]}
             key = (src["nm"].strip().upper(), src["parentNm"].strip().upper())
             category_cache[key] = src
         logger.info(f"[CACHE] Loaded {len(category_cache)} categories into cache.")
@@ -193,28 +195,36 @@ def fetch_or_create_category(nm: str, parent_nm: str = "MOVIE") -> Dict[str, str
     query = {
         "query": {
             "bool": {
-                "must": [
-                    {"match": {"nm": nm}},
-                    {"match": {"parentNm": parent_nm}}
+                "filter": [
+                    {"term": {"nm": nm}},
+                    {"term": {"parentNm": parent_nm}}
                 ]
             }
-        }
+        },
+        "size": 1
     }
     try:
-        response = es.search(index="category-level-two-index", body=query)
-        hits = response.get("hits", {}).get("hits", [])
+        res = es.search(index="category-level-two-index", body=query)
+        hits = res.get("hits", {}).get("hits", [])
         if hits:
-            doc = hits[0]["_source"]
-            doc["id"] = hits[0]["_id"]
+            src = hits[0]["_source"]
+            doc = {**src, "id": hits[0]["_id"]}  # 캐시에만 id 보관
             category_cache[key] = doc
             return doc
 
-        # 없으면 새로 생성
-        doc = {"id": id, "nm": nm, "parentNm": parent_nm}
-        es.index(index="category-level-two-index", document=doc)
-        category_cache[key] = doc
-        logger.info(f"[CATEGORY] Created new category: {nm}, {parent_nm}")
-        return doc
+        # 2) 없으면 생성 (id 필드 절대 넣지 않음)
+        new_doc = {
+            "nm": nm,
+            "parentNm": parent_nm,
+            "favoriteUsers": []
+        }
+        idx_res = es.index(index="category-level-two-index", document=new_doc)
+        doc_id = idx_res.get("_id")
+
+        cached = {**new_doc, "id": doc_id}  # 캐시에만 id 저장
+        category_cache[key] = cached
+        logger.info(f"[CATEGORY] Created new category: {nm}, {parent_nm} (id={doc_id})")
+        return cached
     except Exception as e:
         logger.warning(f"[CATEGORY] 검색 실패 또는 생성 실패 - {nm}: {e}")
         return {}
