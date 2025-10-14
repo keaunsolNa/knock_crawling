@@ -1,12 +1,14 @@
-import requests
-import xmltodict
 import logging
 from typing import List
+
+import requests
+import xmltodict
+
 from crawling.base.abstract_crawling_service import AbstractCrawlingService
-from method.StringDateConvert import StringDateConvertLongTimeStamp
 from infra.elasticsearch_config import get_es_client
 from infra.es_utils import load_all_categories_into_cache, fetch_or_create_category, exists_kopis_by_kopis_code, \
     load_all_kopis_into_cache
+from method.StringDateConvert import StringDateConvertLongTimeStamp
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -19,11 +21,12 @@ load_all_kopis_into_cache()
 
 global dto
 
-def split_comma(s: str | None) -> list[str]:
 
+def split_comma(s: str | None) -> list[str]:
     if not s or not isinstance(s, str) or None == s or not s.strip():
         return []
     return [item.strip() for item in s.split(",") if item.strip()]
+
 
 def parse_runtime(runtime_str: str) -> int:
     if not runtime_str or not isinstance(runtime_str, str):
@@ -41,8 +44,10 @@ def parse_runtime(runtime_str: str) -> int:
             m = 0
     return h * 60 + m
 
+
 def parse_optional_list(value: str) -> List[str]:
     return [v.strip() for v in value.split(",") if v.strip()] if value else []
+
 
 def get_prf_state_enum(korean: str) -> str | None:
     mapping = {
@@ -55,6 +60,7 @@ def get_prf_state_enum(korean: str) -> str | None:
         "알 수 없음": "UNKNOWN"
     }
     return mapping.get(korean)
+
 
 class KOPISCrawler(AbstractCrawlingService):
 
@@ -85,17 +91,16 @@ class KOPISCrawler(AbstractCrawlingService):
             logger.warning(f"[KOPIS] Crawling 실패: {e}")
             return []
 
-
     def get_detail_data(self, mt20id: str) -> dict:
         detail_url = self.config.get("url")
-        params = {
-            "service": self.config["params"]["service"]
-        }
+        params = {"service": self.config["params"]["service"]}
         try:
             response = requests.get(f"{detail_url}/{mt20id}", params=params)
             response.raise_for_status()
-            data = xmltodict.parse(response.text)
-            return data.get("dbs", {}).get("db", {})
+            data = xmltodict.parse(response.text) or {}
+            dbs = data.get("dbs") or {}  # ← None 대비
+            db = dbs.get("db") or {}  # ← None 대비
+            return db
         except Exception as e:
             logger.warning(f"[KOPIS] Detail fetch failed for {mt20id}: {e}")
             return {}
@@ -107,7 +112,9 @@ class KOPISCrawler(AbstractCrawlingService):
 
         # relates
         relates = []
-        relate_data = detail.get("relates", {}).get("relate")
+        relates_container = detail.get("relates") or {}   # ← None 대비
+        relate_data = relates_container.get("relate")
+
         if isinstance(relate_data, list):
             for r in relate_data:
                 name, url = r.get("relatenm"), r.get("relateurl")
@@ -120,12 +127,13 @@ class KOPISCrawler(AbstractCrawlingService):
 
         # styurls
         styurls = []
-        styurl_node = detail.get("styurls", {}).get("styurl")
+        styurls_container = detail.get("styurls") or {}   # ← None 대비
+        styurl_node = styurls_container.get("styurl")
+
         if isinstance(styurl_node, str):
             styurls.append(styurl_node.strip())
         elif isinstance(styurl_node, list):
             styurls = [url.strip() for url in styurl_node if isinstance(url, str) and url.strip()]
-
 
         start_date = converter.string_to_epoch(item.get("prfpdfrom", ""))
         end_date = converter.string_to_epoch(item.get("prfpdto", ""))
